@@ -1,9 +1,9 @@
-FROM openjdk:8
+FROM openjdk:8-jre-alpine
 
 WORKDIR /home/
 
-COPY data-sources.json .
 COPY covid19_data_api.jar .
+COPY data-sources.json .
 
 EXPOSE 9090
 

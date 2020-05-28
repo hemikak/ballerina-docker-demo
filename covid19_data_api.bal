@@ -1,9 +1,19 @@
 import ballerina/http;
 import ballerina/io;
 import ballerina/log;
+import ballerina/docker;
 
 http:Client covid19APIClient = new("https://covidapi.info/api/v1");
 
+@docker:Config {
+    name: "covid-api"
+}
+@docker:CopyFiles {
+    files: [{
+        sourceFile: "data-sources.json",
+        target: "data-sources.json"
+    }]
+}
 @http:ServiceConfig {
     basePath: "/covid19"
 }
@@ -78,7 +88,20 @@ service covid19RecoveriesService on new http:Listener(9090) {
         path: "/sources"
     }
     resource function getDataSource(http:Caller caller, http:Request request) returns error? {
-        io:ReadableByteChannel dataSourceByteChannel = <@untainted>checkpanic io:openReadableFile("data-sources.json");
+        io:ReadableByteChannel|error dataSourceByteChannelOrError = <@untainted>io:openReadableFile("data-sources.json");
+
+        if (dataSourceByteChannelOrError is error) {
+            json errorJson = { message: "error occurred retrieving data" };
+            error? clientError = caller->internalServerError(errorJson);
+            log:printError("unable to read data-sources.json", dataSourceByteChannelOrError);
+            if (clientError is error) {
+                log:printError("unable to communicate to client", clientError);
+            }
+            return;
+        }
+
+        io:ReadableByteChannel dataSourceByteChannel = <io:ReadableByteChannel>dataSourceByteChannelOrError;
+
         io:ReadableCharacterChannel dataSourceChannel = new(dataSourceByteChannel, "UTF8");
 
         // Read JSON from data-sources.json file
